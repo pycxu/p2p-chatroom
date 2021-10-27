@@ -1,0 +1,3 @@
+rootProject.name = 'comp90015a2'
+include 'chatpeer'
+
