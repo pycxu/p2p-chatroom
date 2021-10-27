@@ -90,26 +90,24 @@ public class ChatPeerService {
                 }
 
             }else{ // remote
-                if (!this.chatConn2Guest.containsKey(chatConnection)) { // new client
+                if(!this.chatConn2Guest.containsKey(chatConnection)) { // new client
                     newIdentity(chatConnection);
-                } else {
+                }else {
                     Guest guest = chatConn2Guest.get(chatConnection);
                     //System.out.printf("[client] %s: %s\n", guest.getIdentity(), msg);
                     if (type.equals("hostchange")) {
                         hostchange((String) msgObj.get("host"), guest);
-                    } else if (type.equals("join")) {
+                    }else if (type.equals("join")) {
                         join((String) msgObj.get("roomid"), guest);
-                    } else if (type.equals("who")) {
+                    }else if (type.equals("who")) {
                         who((String) msgObj.get("roomid"), guest);
-                    } else if (type.equals("list")) {
+                    }else if (type.equals("list")) {
                         list(guest);
-                    } else if (type.equals("createroom")) {
-                        createRoom((String) msgObj.get("roomid"), guest);
-                    } else if (type.equals("delete")) {
-                        delete((String) msgObj.get("roomid"), guest);
-                    } else if (type.equals("quit")) {
+                    }else if (type.equals("listneighbors")) {
+                        listneighbors(guest);
+                    }else if (type.equals("quit")) {
                         quit(chatConnection);
-                    } else if (type.equals("message")) {
+                    }else if (type.equals("message")) {
                         message(msg, guest);
                     }
                 }
