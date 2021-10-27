@@ -1,5 +1,6 @@
 package com.comp90015;
 
+import org.json.simple.parser.ParseException;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.CmdLineParser;
@@ -9,7 +10,6 @@ import org.json.simple.parser.JSONParser;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.regex.Pattern;
 
 public class ChatPeer {
     @Option(name = "-p", usage = "listening port")
@@ -73,22 +73,22 @@ public class ChatPeer {
         public void run() {
             connectionAlive = true;
             // register new client
-            //serverWorker.work("", this);
+            chatPeerService.serve("", this, null);
             while (connectionAlive) {
                 try {
                     String in = reader.readLine();
                     if (in != null) {
-                        //serverWorker.work(in, this);
+                        chatPeerService.serve(in, this, null);
                         JSONObject msgObj = (JSONObject) new JSONParser().parse(in);
                         String type = (String) msgObj.get("type");
                         if(type.equals("quit")) {connectionAlive = false;}
                     } else {
                         // client disconnected
-                        //serverWorker.work("{\"type\":\"quit\"}", this);
+                        chatPeerService.serve("{\"type\":\"quit\"}", this, null);
                         connectionAlive = false;
                     }
                 } catch (Exception e) {
-                    //serverWorker.work("{\"type\":\"quit\"}", this);
+                    chatPeerService.serve("{\"type\":\"quit\"}", this, null);
                     connectionAlive = false;
                 }
             }
@@ -113,13 +113,15 @@ public class ChatPeer {
 
     class Sender extends Thread {
         private BufferedReader reader;
-        private ParseSend parser;
+        private SenderParser senderParser;
         private boolean alive;
+        private Guest user;
 
         public Sender() throws IOException {
             this.reader = new BufferedReader(new InputStreamReader(System.in));
             this.alive = false;
-            this.parser = new ParseSend(chatPeerService);
+            this.senderParser = new SenderParser(chatPeerService);
+            this.user = chatPeerService.getChatConn2Guest().get(null);
         }
 
         @Override
@@ -128,14 +130,47 @@ public class ChatPeer {
             while(alive) {
                 try {
                     String msg = reader.readLine();
-                    System.out.println("> " + msg);
-//                    JSONObject msgObj = parser.parse(msg);
-//                    if(msgObj!=null && !msgObj.isEmpty()) {
-//                        chatPeerService.serve();
-//                    }
+                    System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
+                    JSONObject msgObj = senderParser.parse(msg);
+                    if(msgObj!=null && !msgObj.isEmpty()) {
+                        System.out.println(msgObj.toJSONString());
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                     alive = false;
+                }
+            }
+        }
+    }
+
+    class Receiver extends Thread {
+        private BufferedReader reader;
+        private ReceiverParser receiverParser;
+        private JSONParser jsonParser;
+        private boolean alive;
+
+        public Receiver() throws IOException {
+            this.reader = null;
+            this.alive = false;
+            this.receiverParser = new ReceiverParser(chatPeerService);
+            this.jsonParser = new JSONParser();
+        }
+
+        public void setReader(Socket socket) throws IOException {
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+        }
+
+        @Override
+        public void run() {
+            alive = true;
+            while(alive) {
+                if(reader != null) {
+                    try {
+                        JSONObject msgObj = (JSONObject) jsonParser.parse(reader.readLine());
+                        alive = receiverParser.parse(msgObj);
+                    } catch (IOException | ParseException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
