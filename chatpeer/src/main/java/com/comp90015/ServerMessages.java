@@ -37,10 +37,12 @@ public class ServerMessages {
         msgObj.put("type", "roomlist");
         JSONArray rooms = new JSONArray();
         for(ChatRoom chatRoom : chatRooms) {
-            JSONObject room = new JSONObject();
-            room.put("roomid", chatRoom.getRoomId());
-            room.put("count", chatRoom.getGuests().size());
-            rooms.add(room);
+            if(chatRoom.getRoomId() != "") {
+                JSONObject room = new JSONObject();
+                room.put("roomid", chatRoom.getRoomId());
+                room.put("count", chatRoom.getGuests().size());
+                rooms.add(room);
+            }
         }
         msgObj.put("rooms", rooms);
         return msgObj;

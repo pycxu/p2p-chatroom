@@ -8,39 +8,43 @@ public class ReceiverParser {
 
     public ReceiverParser(ChatPeerService chatPeerService) {this.chatPeerService = chatPeerService;}
 
-    public boolean parse(JSONObject msgObj) {
+    public synchronized boolean parse(JSONObject msgObj) {
         String type = (String) msgObj.get("type");
         Guest user = chatPeerService.getChatConn2Guest().get(null);
         if(type.equals("message")) {
             System.out.println(msgObj.get("identity") + ": " + msgObj.get("content"));
-            System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
         }else if(type.equals("roomchange")) {
             String identity = (String) msgObj.get("identity");
             String former = (String) msgObj.get("former");
             String roomId = (String) msgObj.get("roomid");
-
-//            if(roomId.equals("")) { // leave room
-//                if(identity.equals(clientState.getIdentity())) {
-//                    System.out.println(identity + " has quit!");
-//                    return false;
-//                }else {
-//                    System.out.println(identity + " has quit!");
-//                    System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
-//                }
-//            }else if(former.equals(roomId)) {
-//                System.out.println(roomId + " is invalid or non existent");
-//                System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
-//            }else {
-//                if(former.equals("")) {
-//                    clientState.setRoomId(roomId);
-//                    System.out.println(identity + " moves to " + roomId);
-//                    System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
-//                }else {
-//                    if(identity.equals(clientState.getIdentity())) {clientState.setRoomId(roomId);}
-//                    System.out.printf("%s move from %s to %s\n",identity,former,roomId);
-//                    System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
-//                }
-//            }
+            if(former.equals(roomId)) {
+                System.out.println("The requested room is invalid or non existent");
+            }else {
+                if(former.equals("-") && !roomId.equals("*")) {
+                    System.out.printf("%s joined the server.\n",identity);
+                    chatPeerService.setPeerIdentity(identity);
+                }else if(roomId.equals("-")) {
+                    System.out.printf("%s left the server.\n", identity);
+                }else if(former.equals("") && !roomId.equals("*")) {
+                    System.out.printf("%s moved to %s.\n", identity, roomId);
+                }else if(roomId.equals("")) {
+                    System.out.printf("%s moved out from %s.\n", identity, former);
+                }else if(roomId.equals("*")) {
+                    System.out.println("You are kicked and blocked from reconnecting");
+                    chatPeerService.init();
+                    return false;
+                }else {
+                    System.out.printf("%s moved from %s to %s.\n", identity, former, roomId);
+                }
+                if(identity.equals(chatPeerService.getPeerIdentity())) {
+                    if(!roomId.equals("-") && !roomId.equals("*")) {
+                        chatPeerService.setPeerCurrentRoom(roomId);
+                    }else {
+                        chatPeerService.init();
+                        return false;
+                    }
+                }
+            }
         }else if(type.equals("roomcontents")) {
             JSONArray identities = (JSONArray) msgObj.get("identities");
             if(identities.size() == 0) {
@@ -52,17 +56,18 @@ public class ReceiverParser {
                 }
                 System.out.println();
             }
-            System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
         }else if(type.equals("roomlist")) {
             JSONArray rooms = (JSONArray) msgObj.get("rooms");
+            if(rooms.size() == 0) {
+                System.out.println("There are no rooms.");
+            }else{
                 for(int i = 0; i < rooms.size(); i++) {
                     JSONObject room = (JSONObject) rooms.get(i);
                     String roomid = (String) room.get("roomid");
                     Long count = (Long) room.get("count");
                     System.out.println( roomid + " : " + count + ((count>1)?(" guests"):(" guest")));
-                    System.out.print("[" + user.getCurrentChatRoom().getRoomId() + "] " + user.getIdentity() + ":" + user.getpPort() + "> ");
                 }
-                //System.out.print("[" + clientState.getRoomId() + "] " + clientState.getIdentity() + "> ");
+            }
         }
         return true;
     }
