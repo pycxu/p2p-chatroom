@@ -14,14 +14,14 @@ public class SenderParser {
         }else if(msgArr.length == 1) {
             if(msgArr[0].startsWith("#join")) {
                 return msgObj = ClientMessages.join("");
-            }else if(msgArr[0].startsWith("#list")) {
-                return msgObj = ClientMessages.list();
+            }else if(msgArr[0].startsWith("#listneighbors")) {
+                return msgObj = ClientMessages.listNeighbors();
             }else if(msgArr[0].startsWith("#quit")) {
                 return msgObj = ClientMessages.quit();
             }else if(msgArr[0].startsWith("#help")) {
                 return msgObj = ClientMessages.help();
-            }else if(msgArr[0].startsWith("#listneighbors")) {
-                return msgObj = ClientMessages.listNeighbors();
+            }else if(msgArr[0].startsWith("#list")) {
+                return msgObj = ClientMessages.list();
             }else if(msgArr[0].startsWith("#searchnetwork")){
                 return msgObj = ClientMessages.searchNetwork();
             }else {

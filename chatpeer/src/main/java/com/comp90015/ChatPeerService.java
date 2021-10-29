@@ -20,6 +20,7 @@ public class ChatPeerService {
     private volatile ArrayList<ChatRoom> chatRooms;
     private volatile ArrayList<String> identities;
     private volatile ArrayList<String> banList;
+    private volatile ArrayList<Guest> guests;
     private volatile HashMap<String, ChatRoom> roomId2ChatRoom;
     private volatile HashMap<ChatPeer.ChatConnection, Guest> chatConn2Guest;
     private volatile Socket peerSocket;
@@ -34,6 +35,7 @@ public class ChatPeerService {
         this.chatRooms = new ArrayList<>();
         this.identities = new ArrayList<>();
         this.banList = new ArrayList<>();
+        this.guests = new ArrayList<>();
         this.roomId2ChatRoom = new HashMap<>();
         this.chatConn2Guest = new HashMap<>();
 
@@ -170,6 +172,7 @@ public class ChatPeerService {
                 chatConnection
         );
         chatConn2Guest.put(chatConnection, guest);
+        guests.add(guest);
     }
 
     private void hostchange(String host, Guest guest) {
@@ -329,19 +332,59 @@ public class ChatPeerService {
             }
         }
         broadcastMsgs.add(broadcastMsg);
-
+        System.out.println(guest.getIdentity() + " has quit!");
         guest.getCurrentChatRoom().removeGuest(guest);
         identities.remove(guest.getIdentity());
         chatConn2Guest.remove(chatConnection);
+        guests.remove(guest);
         broadcast(broadcastMsgs);
+
     }
 
     private synchronized void delete(String roomId, Guest guest) throws ParseException {
-        // finish join first
+        if(!roomId2ChatRoom.containsKey(roomId) || roomId.equals("")){
+            System.out.println("The requested room is invalid or non existent");
+        }else {
+            // delete the room by joining all guests to the empty chatroom
+            ChatRoom deleteRoom = roomId2ChatRoom.get(roomId);
+            ArrayList<Guest> deleteRoomGuests = new ArrayList<>();
+            for(Guest g : deleteRoom.getGuests()) { deleteRoomGuests.add(g); }
+            for(Guest g : deleteRoomGuests) {join("", g);}
+            chatRooms.remove(deleteRoom);
+            roomId2ChatRoom.remove(roomId);
+            System.out.printf("Room %s is deleted.\n", roomId);
+        }
     }
 
     private void listneighbors(Guest guest) {
-
+        ArrayList<String> neighbors = new ArrayList<>();
+        for(Guest g: guests) {
+            if(g != guest) {
+                neighbors.add(g.getIP());
+            }
+        }
+        if(guest.getChatConnection() == null) { //user cmd -> return connected clients
+            if(neighbors.isEmpty()) {
+                System.out.println("There are no neighbors");
+            }else{
+                System.out.print("Neighbors:");
+                for(String neighbor: neighbors) {
+                    System.out.print(" " + neighbor);
+                }
+                System.out.println();
+            }
+        }else { //client cmd
+            if(peerSocket != null) {
+                neighbors.add(peerSocket.getInetAddress().toString().split("/")[1] + ":" + peerSocket.getPort());
+            }
+            ArrayList<BroadcastMsg> broadcastMsgs = new ArrayList<>();
+            JSONObject msgObj = ServerMessages.neighbors(neighbors);
+            BroadcastMsg broadcastMsg = new BroadcastMsg();
+            broadcastMsg.setMsg(msgObj.toJSONString());
+            broadcastMsg.addChatConnection(guest.getChatConnection());
+            broadcastMsgs.add(broadcastMsg);
+            broadcast(broadcastMsgs);
+        }
     }
 
     private void searchnetwork() {

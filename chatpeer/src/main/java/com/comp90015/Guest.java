@@ -9,8 +9,6 @@ public class Guest {
     private ChatRoom currentChatRoom;
     private ChatPeer.ChatConnection chatConnection;
 
-    public Guest() {}
-
     public Guest(String identity, int pPort, int iPort, ChatRoom currentChatRoom, ChatPeer.ChatConnection chatConnection) {
         this.identity = identity;
         this.pPort = pPort;
@@ -21,6 +19,10 @@ public class Guest {
 
     public String getIdentity() {
         return (identity.equals("localhost")?("127.0.0.1:" + pPort):(identity + ":" + iPort));
+    }
+
+    public String getIP() {
+        return (identity + ":" + pPort);
     }
 
     public int getpPort() {return pPort;}

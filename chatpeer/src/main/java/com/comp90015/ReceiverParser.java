@@ -68,6 +68,18 @@ public class ReceiverParser {
                     System.out.println( roomid + " : " + count + ((count>1)?(" guests"):(" guest")));
                 }
             }
+        }else if(type.equals("neighbors")) {
+            JSONArray neighbors = (JSONArray) msgObj.get("neighbors");
+            System.out.println("Neighbors:");
+            if(neighbors.size() == 0) {
+                System.out.println("There are no neighbors");
+            }else {
+                System.out.print("Neighbors:");
+                for(int i = 0; i < neighbors.size(); i++) {
+                    System.out.print(" " + neighbors.get(i));
+                }
+                System.out.println();
+            }
         }
         return true;
     }
