@@ -5,9 +5,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -74,6 +72,10 @@ public class ChatPeerService {
                         System.out.println("Local commands are not allowed!");
                     }else if(type.equals("connect")) {
                         System.out.println("Already connected!");
+                    }else if(type.equals("help")) {
+                        help();
+                    }else if(type.equals("searchnetwork")) {
+                        searchnetwork();
                     }else {
                         peerMessage(msg); // forward msg to remote peer
                     }
@@ -144,6 +146,7 @@ public class ChatPeerService {
 
         try { //connect to the remote peer
             Socket s = new Socket();
+            s.setReuseAddress(true);
             if(!port.equals("")) { //port number is provided
                 s.bind(new InetSocketAddress(Integer.parseInt(port)));
                 s.connect(new InetSocketAddress(hostName, hostPort));
@@ -162,7 +165,7 @@ public class ChatPeerService {
             e.printStackTrace();
         }
 
-        JSONObject msgObj = ClientMessages.hostChange(user.getIdentity());
+        JSONObject msgObj = ClientMessages.hostChange(String.valueOf(this.pPort));
         peerMessage(msgObj.toJSONString());
 
         roomId2ChatRoom.get(user.getCurrentChatRoom().getRoomId()).removeGuest(user);
@@ -188,9 +191,7 @@ public class ChatPeerService {
     }
 
     private void hostchange(String host, Guest guest) {
-        String[] hostParts = host.split(":");
-        //String hostName = hostParts[0];
-        int hostPort = Integer.parseInt(hostParts[1]);
+        int hostPort = Integer.parseInt(host);
         guest.setpPort(hostPort);
         String ip = guest.getChatConnection().getInetAddress();
         ArrayList<BroadcastMsg> broadcastMsgs = new ArrayList<>();
@@ -400,7 +401,93 @@ public class ChatPeerService {
     }
 
     private synchronized void searchnetwork() {
+        ArrayList<String> peers = new ArrayList<>();
+        ArrayList<String> visited = new ArrayList<>();
+        if(peerSocket != null) {
+            peers.add(peerSocket.getInetAddress().toString().split("/")[1] + ":" + peerSocket.getPort());
+        }
 
+        for(Guest g: guests) {peers.add(g.getIP());}
+
+        if(peers.isEmpty()) {
+            System.out.println("Nothing found!");
+        }else {
+            String peer;
+            String peerIP;
+            String toPrint = "";
+            int peerPort;
+            Socket socket;
+            PrintWriter writer;
+            BufferedReader reader;
+            JSONObject msgObj;
+            JSONObject resObj;
+            JSONParser jsonParser = new JSONParser();
+            String response;
+            String identity;
+            String IP;
+            JSONArray rooms;
+            JSONArray neighbors;
+
+            while(!peers.isEmpty()) {
+                try {
+                    peer = peers.get(0);
+                    peerIP = peer.split(":")[0];
+                    peerPort = Integer.parseInt(peer.split(":")[1]);
+                    toPrint += peerIP + ":" + peerPort + '\n';
+                    visited.add(peer);
+                    socket = new Socket(peerIP, peerPort);
+                    reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                    writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
+
+                    //#hostchange
+                    msgObj = ClientMessages.hostChange(String.valueOf(this.pPort));
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    response = reader.readLine();
+                    resObj = (JSONObject) jsonParser.parse(response);
+                    identity = (String) resObj.get("identity");
+                    IP = identity.split(":")[0] + ":" + this.pPort;
+
+                    //#list
+                    msgObj = ClientMessages.list();
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    response = reader.readLine();
+                    resObj = (JSONObject) jsonParser.parse(response);
+                    rooms = (JSONArray) resObj.get("rooms");
+                    if(rooms.size() == 0) {
+                        toPrint += "No rooms found.\n";
+                    }else {
+                        for(int i = 0; i < rooms.size(); i++) {
+                            JSONObject room = (JSONObject) rooms.get(i);
+                            toPrint += room.get("roomid") + " " + room.get("count") + " users.\n";
+                        }
+                    }
+                    //#listneighbors
+                    msgObj = ClientMessages.listNeighbors();
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    response = reader.readLine();
+                    resObj = (JSONObject) jsonParser.parse(response);
+                    neighbors = (JSONArray) resObj.get("neighbors");
+                    for(int i = 0; i < neighbors.size(); i++){
+                        if(!neighbors.get(i).equals(IP) && !visited.contains(neighbors.get(i).toString())){
+                            peers.add(neighbors.get(i).toString());
+                        }
+                    }
+
+                    //#quit
+                    msgObj = ClientMessages.quit();
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    peers.remove(0);
+
+                } catch (IOException | ParseException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.print(toPrint);
+        }
     }
 
     private synchronized void kick(String identity, Guest user) {
@@ -493,6 +580,11 @@ public class ChatPeerService {
         ArrayList<Guest> guestsCopy = new ArrayList<>();
         for(Guest g: guests) {guestsCopy.add(g);}
         for(Guest g: guestsCopy) {quit(g.getChatConnection());}
+        if(peerSocket != null) {
+            JSONObject msgObj = ClientMessages.quit();
+            peerMessage(msgObj.toJSONString());
+        }
+        this.init();
     }
     /**
      * This class stores the broadcast message and defines the audience.

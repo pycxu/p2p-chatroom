@@ -159,7 +159,7 @@ public class ChatPeer {
                             chatPeerService.serve(msgObj.toJSONString(), null, receiver);
                         }
                     }else {
-                        receiver.close();
+                        //System.out.println("ctrl d");
                         chatPeerService.terminate();
                         chatPeer.receiver.interrupt();
                         chatPeer.serverSocket.close();
@@ -218,7 +218,14 @@ public class ChatPeer {
                             close();
                         }
                     } catch (IOException | ParseException e) {
-                        e.printStackTrace();
+                        if(receiver.reader != null) {
+                            try {
+                                reader.close();
+                            } catch (IOException ex) {
+                                //ex.printStackTrace();
+                            }
+                        }
+                        //e.printStackTrace();
                         alive = false;
                     }
                 }
