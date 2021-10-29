@@ -105,6 +105,8 @@ public class ChatPeerService {
                         System.out.println("You are not connected to a remote peer! Use Ctrl-D to terminate this peer process.");
                     }else if (type.equals("help")) {
                         help();
+                    }else if (type.equals("shout")) {
+                        shout((String) msgObj.get("content"), user);
                     }else if (type.equals("message")) {
                         message(msg, user);
                     }
@@ -128,6 +130,10 @@ public class ChatPeerService {
                         listneighbors(guest);
                     }else if (type.equals("quit")) {
                         quit(chatConnection);
+                    }else if (type.equals("shout")) {
+                        shout((String) msgObj.get("content"), guest);
+                    }else if (type.equals("shoutmessage")) {
+                        shoutmessage((String) msgObj.get("identity"), (String) msgObj.get("content"));
                     }else if (type.equals("message")) {
                         message(msg, guest);
                     }
@@ -539,6 +545,7 @@ public class ChatPeerService {
         System.out.println("#kick [identity] - kick a user");
         System.out.println("#listneighbors - get a list of peers’ network addresses");
         System.out.println("#searchnetwork - get a list of chat rooms over all accessible peers");
+        System.out.println("#shout [content] - shout to all rooms on all peers of the network");
         System.out.println("#quit - disconnect from a peer");
     }
 
@@ -562,6 +569,124 @@ public class ChatPeerService {
             }
             broadcastMsgs.add(broadcastMsg);
             broadcast(broadcastMsgs);
+        }
+    }
+    private void shoutmessage(String identity, String content) {
+        ArrayList<BroadcastMsg> broadcastMsgs = new ArrayList<>();
+        JSONObject msgObj = ServerMessages.shoutMessage(identity, content);
+        BroadcastMsg broadcastMsg = new BroadcastMsg();
+        broadcastMsg.setMsg(msgObj.toJSONString());
+        for(Guest g: guests) {
+            if(g.getCurrentChatRoom().getRoomId() != "") {
+                broadcastMsg.addChatConnection(g.getChatConnection());
+            }
+        }
+        broadcastMsgs.add(broadcastMsg);
+        broadcast(broadcastMsgs);
+
+        if(peerSocket == null) {
+            if(!chatConn2Guest.get(null).getCurrentChatRoom().getRoomId().equals("")) {
+                System.out.println(identity + "shouted:1 " + content);
+            }
+        }
+    }
+
+    private synchronized void shout(String content, Guest guest) {
+        if(guest.getCurrentChatRoom().getRoomId().equals("")) {
+            return;
+        }
+
+        //System.out.println(guest.getIdentity() + "shouted:2 " + content);
+        ArrayList<BroadcastMsg> broadcastMsgs = new ArrayList<>();
+        JSONObject msgObj;
+        BroadcastMsg broadcastMsg;
+        msgObj = ServerMessages.shoutMessage(guest.getIdentity(), content);
+        broadcastMsg = new BroadcastMsg();
+        broadcastMsg.setMsg(msgObj.toJSONString());
+        for(Guest g: guests) {
+            if(g.getCurrentChatRoom().getRoomId() != "") {
+                broadcastMsg.addChatConnection(g.getChatConnection());
+            }
+        }
+        broadcastMsgs.add(broadcastMsg);
+        broadcast(broadcastMsgs);
+
+        ArrayList<String> peers = new ArrayList<>();
+        ArrayList<String> visited = new ArrayList<>();
+        if(peerSocket != null) {
+            peers.add(peerSocket.getInetAddress().toString().split("/")[1] + ":" + peerSocket.getPort());
+        }else {
+            if(!chatConn2Guest.get(null).getCurrentChatRoom().getRoomId().equals("")) {
+                System.out.println(guest.getIdentity() + "shouuuted: " + content);
+            }
+        }
+
+        for(Guest g: guests) {peers.add(g.getIP());}
+
+        if(peers.isEmpty()) {
+            System.out.println("No reachable peers!");
+        }else {
+            String peer;
+            String peerIP;
+            int peerPort;
+            Socket socket;
+            PrintWriter writer;
+            BufferedReader reader;
+            JSONObject resObj;
+            JSONParser jsonParser = new JSONParser();
+            String response;
+            String identity;
+            String IP;
+            JSONArray neighbors;
+
+            while(!peers.isEmpty()) {
+                try {
+                    peer = peers.get(0);
+                    peerIP = peer.split(":")[0];
+                    peerPort = Integer.parseInt(peer.split(":")[1]);
+                    visited.add(peer);
+                    //System.out.println("Visiting " + peer);
+                    socket = new Socket(peerIP, peerPort);
+                    reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                    writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
+
+                    //#hostchange
+                    msgObj = ClientMessages.hostChange(String.valueOf(this.pPort));
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    response = reader.readLine();
+                    resObj = (JSONObject) jsonParser.parse(response);
+                    identity = (String) resObj.get("identity");
+                    IP = identity.split(":")[0] + ":" + this.pPort;
+
+                    //shout
+                    msgObj = ClientMessages.shoutMessage(guest.getIdentity(), content);
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+
+                    //#listneighbors
+                    msgObj = ClientMessages.listNeighbors();
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    response = reader.readLine();
+                    resObj = (JSONObject) jsonParser.parse(response);
+                    neighbors = (JSONArray) resObj.get("neighbors");
+                    for(int i = 0; i < neighbors.size(); i++){
+                        if(!neighbors.get(i).equals(IP) && !visited.contains(neighbors.get(i).toString())){
+                            peers.add(neighbors.get(i).toString());
+                        }
+                    }
+
+                    //#quit
+                    msgObj = ClientMessages.quit();
+                    writer.println(msgObj.toJSONString());
+                    writer.flush();
+                    peers.remove(0);
+
+                } catch (IOException | ParseException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 

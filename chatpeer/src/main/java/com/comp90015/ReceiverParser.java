@@ -10,9 +10,10 @@ public class ReceiverParser {
 
     public synchronized boolean parse(JSONObject msgObj) {
         String type = (String) msgObj.get("type");
-        Guest user = chatPeerService.getChatConn2Guest().get(null);
         if(type.equals("message")) {
             System.out.println(msgObj.get("identity") + ": " + msgObj.get("content"));
+        }else if(type.equals("shoutmessage")) {
+            System.out.println(msgObj.get("identity") + " shouted: " + msgObj.get("content"));
         }else if(type.equals("roomchange")) {
             String identity = (String) msgObj.get("identity");
             String former = (String) msgObj.get("former");

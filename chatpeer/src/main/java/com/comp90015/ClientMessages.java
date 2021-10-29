@@ -98,4 +98,17 @@ public class ClientMessages {
         return msgObj;
     }
 
+    public static JSONObject shout(String content) {
+        JSONObject msgObj = new JSONObject();
+        msgObj.put("type", "shout");
+        msgObj.put("content", content);
+        return msgObj;
+    }
+    public static JSONObject shoutMessage(String identity, String content) {
+        JSONObject msgObj = new JSONObject();
+        msgObj.put("type", "shoutmessage");
+        msgObj.put("identity", identity);
+        msgObj.put("content", content);
+        return msgObj;
+    }
 }

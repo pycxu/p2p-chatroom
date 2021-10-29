@@ -30,8 +30,8 @@ public class ChatPeer {
 
         try {
             parser.parseArgument(args);
-            System.out.println("option: -p " + chatPeer.pPort);
-            System.out.println("option: -i " + chatPeer.iPort);
+            //System.out.println("option: -p " + chatPeer.pPort);
+            //System.out.println("option: -i " + chatPeer.iPort);
         } catch (CmdLineException e) {
             e.printStackTrace();
         }

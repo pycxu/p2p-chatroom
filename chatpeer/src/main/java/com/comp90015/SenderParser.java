@@ -60,6 +60,8 @@ public class SenderParser {
                 }else if(msgArr.length == 3) {
                     return msgObj = ClientMessages.connect(msgArr[1], msgArr[2]);
                 }
+            }else if(msgArr[0].startsWith("#shout")){
+                return msgObj = ClientMessages.shout(msg.substring(7));
             }else {
                 System.out.println("Invalid command!");
             }

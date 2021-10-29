@@ -64,4 +64,11 @@ public class ServerMessages {
         msgObj.put("neighbors", neighborsArr);
         return msgObj;
     }
+    public static JSONObject shoutMessage(String identity, String content) {
+        JSONObject msgObj = new JSONObject();
+        msgObj.put("type", "shoutmessage");
+        msgObj.put("identity", identity);
+        msgObj.put("content", content);
+        return msgObj;
+    }
 }
