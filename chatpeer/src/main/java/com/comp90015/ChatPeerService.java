@@ -43,11 +43,23 @@ public class ChatPeerService {
         this.roomId2ChatRoom.put(emptyRoom.getRoomId(), emptyRoom);
     }
 
-    public void init() {
+    public synchronized void init() {
         Guest user = new Guest("localhost", pPort, iPort, emptyRoom, null);
         identities.add(user.getIdentity());
         chatConn2Guest.put(user.getChatConnection(), user);
         emptyRoom.addGuest(user);
+        if(peerSocket != null) {
+            try {
+                peerSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if(peerWriter != null) {
+            peerWriter.close();
+        }
+
         peerSocket = null;
         peerWriter = null;
     }
@@ -356,7 +368,7 @@ public class ChatPeerService {
         }
     }
 
-    private void listneighbors(Guest guest) {
+    private synchronized void listneighbors(Guest guest) {
         ArrayList<String> neighbors = new ArrayList<>();
         for(Guest g: guests) {
             if(g != guest) {
@@ -387,12 +399,46 @@ public class ChatPeerService {
         }
     }
 
-    private void searchnetwork() {
+    private synchronized void searchnetwork() {
 
     }
 
-    private void kick(String identity, Guest guest) {
+    private synchronized void kick(String identity, Guest user) {
+        if(!identities.contains(identity)) {
+            System.out.println("Invalid identity!");
+        }else {
+            banList.add(identity.split(":")[0]);
+            Guest kickGuest = new Guest();
+            for(Guest g: guests) {
+                if(g.getIdentity().equals(identity) && !g.getIdentity().equals(user.getIdentity())) {
+                    kickGuest = g;
+                }
+            }
+            ArrayList<BroadcastMsg> broadcastMsgs = new ArrayList<>();
+            JSONObject msgObj;
+            BroadcastMsg broadcastMsg;
+            //kcik msg
+            ChatRoom kickRoom = roomId2ChatRoom.get(kickGuest.getCurrentChatRoom().getRoomId());
+            msgObj = ServerMessages.roomChange(identity, kickRoom.getRoomId(), "*");
+            broadcastMsg = new BroadcastMsg();
+            broadcastMsg.setMsg(msgObj.toJSONString());
+            broadcastMsg.addChatConnection(kickGuest.getChatConnection());
+            broadcastMsgs.add(broadcastMsg);
 
+            //notification msg
+            kickRoom.removeGuest(kickGuest);
+            msgObj = ServerMessages.roomChange(identity, kickRoom.getRoomId(), "-");
+            broadcastMsg = new BroadcastMsg();
+            broadcastMsg.setMsg(msgObj.toJSONString());
+            for(Guest g: kickRoom.getGuests()) { broadcastMsg.addChatConnection(g.getChatConnection());}
+            broadcastMsgs.add(broadcastMsg);
+            broadcast(broadcastMsgs);
+            identities.remove(identity);
+            chatConn2Guest.remove(kickGuest.getChatConnection());
+            guests.remove(kickGuest);
+            kickGuest.getChatConnection().close();
+            System.out.println(identity + " is kicked and blocked from reconnecting.");
+        }
     }
 
     private void help() {
@@ -443,6 +489,11 @@ public class ChatPeerService {
         }
     }
 
+    public void terminate() {
+        ArrayList<Guest> guestsCopy = new ArrayList<>();
+        for(Guest g: guests) {guestsCopy.add(g);}
+        for(Guest g: guestsCopy) {quit(g.getChatConnection());}
+    }
     /**
      * This class stores the broadcast message and defines the audience.
      */

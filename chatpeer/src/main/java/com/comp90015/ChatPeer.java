@@ -20,6 +20,10 @@ public class ChatPeer {
 
     private ChatPeerService chatPeerService;
 
+    private Sender sender;
+    private Receiver receiver;
+    private ServerSocket serverSocket;
+
     public static void main(String[] args) {
         ChatPeer chatPeer = new ChatPeer();
         CmdLineParser parser = new CmdLineParser(chatPeer);
@@ -34,19 +38,18 @@ public class ChatPeer {
 
         chatPeer.chatPeerService = new ChatPeerService(chatPeer.pPort, chatPeer.iPort);
         chatPeer.chatPeerService.init();
-        chatPeer.handle();
+        chatPeer.handle(chatPeer);
     }
 
-    public void handle() {
-        ServerSocket serverSocket;
+    public void handle(ChatPeer chatPeer) {
         try {
-            serverSocket = new ServerSocket(pPort);
+            this.serverSocket = new ServerSocket(pPort);
             System.out.printf("[ChatPeer] listening on port %d...\n", pPort);
 
-            Receiver receiver = new Receiver();
+            this.receiver = new Receiver();
             receiver.start();
 
-            Sender sender = new Sender(receiver);
+            this.sender = new Sender(chatPeer, receiver);
             sender.start();
 
             while (true) {
@@ -56,7 +59,7 @@ public class ChatPeer {
                 connection.start();
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Peer process terminated...");
         }
     }
 
@@ -129,13 +132,15 @@ public class ChatPeer {
         private boolean alive;
         private Guest user;
         private Receiver receiver;
+        private ChatPeer chatPeer;
 
-        public Sender(Receiver receiver) throws IOException {
+        public Sender(ChatPeer chatPeer, Receiver receiver) throws IOException {
             this.reader = new BufferedReader(new InputStreamReader(System.in));
             this.alive = false;
             this.senderParser = new SenderParser();
             this.user = chatPeerService.isConnected()?null:chatPeerService.getChatConn2Guest().get(null);
             this.receiver = receiver;
+            this.chatPeer = chatPeer;
         }
 
         @Override
@@ -154,23 +159,18 @@ public class ChatPeer {
                             chatPeerService.serve(msgObj.toJSONString(), null, receiver);
                         }
                     }else {
-                        System.out.println("ctrl d");
+                        receiver.close();
+                        chatPeerService.terminate();
+                        chatPeer.receiver.interrupt();
+                        chatPeer.serverSocket.close();
                         alive = false;
+                        chatPeer.sender.interrupt();
                     }
 
                 } catch (IOException e) {
                     e.printStackTrace();
                     alive = false;
                 }
-            }
-            close();
-        }
-
-        public void close() {
-            try {
-                reader.close();
-            } catch (IOException e) {
-                System.out.println(e.getMessage());
             }
         }
     }
@@ -202,12 +202,20 @@ public class ChatPeer {
                 if(this.reader != null) {
                     try {
                         String response = reader.readLine();
-                        //System.out.println("received: " + response);
-                        JSONObject msgObj = (JSONObject) jsonParser.parse(response);
-
-                        alive = receiverParser.parse(msgObj);
-                        if(chatPeerService.isConnected()) {
-                            System.out.print("[" + chatPeerService.getPeerCurrentRoom() + "] " + chatPeerService.getPeerIdentity() + "> ");
+                        if(response != null) {
+                            //System.out.println("received: " + response);
+                            JSONObject msgObj = (JSONObject) jsonParser.parse(response);
+                            alive = receiverParser.parse(msgObj);
+                            if(alive == false) {
+                                close();
+                                alive = true;
+                            }
+                            if(chatPeerService.isConnected()) {
+                                System.out.print("[" + chatPeerService.getPeerCurrentRoom() + "] " + chatPeerService.getPeerIdentity() + "> ");
+                            }
+                        }else {
+                            System.out.println("Disconnected from peer!");
+                            close();
                         }
                     } catch (IOException | ParseException e) {
                         e.printStackTrace();
@@ -215,6 +223,24 @@ public class ChatPeer {
                     }
                 }
             }
+            try {
+                reader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public synchronized void close() {
+            try {
+                if(reader != null) {
+                    reader.close();
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            reader = null;
+            chatPeerService.init();
         }
     }
 }

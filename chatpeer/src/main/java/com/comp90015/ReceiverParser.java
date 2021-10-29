@@ -31,7 +31,6 @@ public class ReceiverParser {
                     System.out.printf("%s moved out from %s.\n", identity, former);
                 }else if(roomId.equals("*")) {
                     System.out.println("You are kicked and blocked from reconnecting");
-                    chatPeerService.init();
                     return false;
                 }else {
                     System.out.printf("%s moved from %s to %s.\n", identity, former, roomId);
@@ -40,7 +39,6 @@ public class ReceiverParser {
                     if(!roomId.equals("-") && !roomId.equals("*")) {
                         chatPeerService.setPeerCurrentRoom(roomId);
                     }else {
-                        chatPeerService.init();
                         return false;
                     }
                 }

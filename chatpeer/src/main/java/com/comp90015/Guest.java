@@ -9,6 +9,7 @@ public class Guest {
     private ChatRoom currentChatRoom;
     private ChatPeer.ChatConnection chatConnection;
 
+    public Guest() {}
     public Guest(String identity, int pPort, int iPort, ChatRoom currentChatRoom, ChatPeer.ChatConnection chatConnection) {
         this.identity = identity;
         this.pPort = pPort;
